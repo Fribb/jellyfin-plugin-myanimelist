@@ -8,6 +8,7 @@ This Plugin adds the metadata provider for [MyAnimeList.net](https://myanimelist
 
 TODO:
 
+* Use Jikan.net for C# Wrapper of Jikan https://github.com/Ervie/jikan.net
 * Search for an Anime
   * search for the Title directly 
   * When `[mal-XXXX]` exists in the title then search for for that specific ID instead
