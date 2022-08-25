@@ -1,8 +1,3 @@
-/*
-using Jellyfin.Data.Entities.Libraries;
-using MediaBrowser.Common.Net;
-using MediaBrowser.Model.Entities;
-*/
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -48,6 +43,11 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers.MyAnimeList
         private IJikan jikanAPI;
 
         /// <summary>
+        /// A Utils Class.
+        /// </summary>
+        private Utils utils;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="MyAnimeListSeriesProvider"/> class.
         /// </summary>
         /// <param name="applicationPaths">The Application Path.</param>
@@ -59,6 +59,7 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers.MyAnimeList
             this._paths = applicationPaths;
             this._httpClientFactory = httpClientFactory;
             this.jikanAPI = new Jikan();
+            this.utils = new Utils(logger);
         }
 
         /// <inheritdoc />
@@ -70,42 +71,27 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers.MyAnimeList
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(SeriesInfo searchInfo, CancellationToken cancellationToken)
         {
-            this._log.LogInformation("GetSearchResults");
-
             var searchResults = new List<RemoteSearchResult>();
 
             if (searchInfo.TryGetProviderId(Constants.PluginName, out var seriesId))
             {
-                long animeId = (long)Convert.ToInt64(seriesId, CultureInfo.InvariantCulture);
+                this._log.LogInformation("Searching for Anime by ID: {Id}", seriesId);
+
+                long animeId = (long)Convert.ToInt32(seriesId, CultureInfo.InvariantCulture);
                 var anime = await this.jikanAPI.GetAnimeAsync(animeId).ConfigureAwait(false);
 
-                searchResults.Add(MapToRemoteSearchResult(anime.Data));
+                searchResults.Add(this.utils.MapToRemoteSearchResult(anime.Data));
+            }
+            else
+            {
+                this._log.LogInformation("Searching for Anime by Name: {Name}", searchInfo.Name);
+
+                var searchResponse = await this.jikanAPI.SearchAnimeAsync(searchInfo.Name).ConfigureAwait(false);
+
+                searchResults.AddRange(this.utils.MapToRemoteSearchResults(searchResponse.Data));
             }
 
             return searchResults;
-        }
-
-        /// <summary>
-        /// Create a new RemoteSearchResult.
-        /// </summary>
-        /// <param name="anime">The Anime that should be parsed to the RemoteSearchResult.</param>
-        /// <returns>A RemoteSearchResult.</returns>
-        private RemoteSearchResult MapToRemoteSearchResult(Anime anime)
-        {
-            this._log.LogInformation("MapToRemoteSearchResult");
-
-            var parsedAnime = new RemoteSearchResult
-            {
-                Name = anime.Title,
-                SearchProviderName = Name,
-                ImageUrl = anime.Images.JPG.MaximumImageUrl,
-                Overview = anime.Synopsis,
-                ProductionYear = anime.Aired.From?.Year,
-                PremiereDate = anime.Aired.From
-            };
-            parsedAnime.SetProviderId(Constants.PluginName, anime.MalId.ToString());
-
-            return parsedAnime;
         }
 
         /// <inheritdoc />
@@ -151,41 +137,30 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers.MyAnimeList
                     result.HasMetadata = true;
                     result.Item = new Series
                     {
-                        ProviderIds = new Dictionary<string, string?>() { { "MyAnimeList", malId } },
+                        ProviderIds = new Dictionary<string, string?>() { { Constants.PluginName, malId } },
 
                         DisplayOrder = "absolute",
-                        Status = this.ParseStatus(anime.Status),
+                        Status = this.utils.ParseStatus(anime.Status),
                         Overview = anime.Synopsis,
                         CommunityRating = (float?)anime.Score,
+                        PremiereDate = anime.Aired.From,
                         EndDate = anime.Aired.To,
-                        // Genres = anime.Genres.ToArray<String>(), // TODO: parse Genre
+                        Genres = this.utils.ParseGenres(anime.Genres, anime.Demographics),
+                        Name = this.utils.GetName(anime),
+                        OriginalTitle = anime.Title,
+                        ProductionYear = anime.Aired.From?.Year,
+                        Studios = this.utils.ParseStudios(anime.Studios),
+                        OfficialRating = anime.Rating
                     };
+                    result.RemoteImages.Add(this.utils.MapToRemoteImage(anime.Images));
+
+                    await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
+
+                    var animePictures = await this.jikanAPI.GetAnimePicturesAsync(animeId).ConfigureAwait(false);
+                    result.RemoteImages.AddRange(this.utils.MapToRemoteImages(animePictures.Data));
+
+                    // TODO: Images are not displayed in Jellyfin.
                 }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Parse the status from the Anime to the SeriesStatus in Jellyfin.
-        /// </summary>
-        /// <param name="status">the Status of the Anime.</param>
-        /// <returns>the SeriesStatus for Jellyfin.</returns>
-        private SeriesStatus? ParseStatus(string status)
-        {
-            SeriesStatus? result;
-
-            if (status.Equals("Currently Airing", StringComparison.Ordinal))
-            {
-                result = SeriesStatus.Continuing;
-            }
-            else if (status.Equals("Ended", StringComparison.Ordinal))
-            {
-                result = SeriesStatus.Ended;
-            }
-            else
-            {
-                result = null;
             }
 
             return result;
@@ -194,11 +169,7 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers.MyAnimeList
         /// <inheritdoc />
         public async Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
         {
-            this._log.LogInformation("GetImageResponse");
-
-            var httpClient = _httpClientFactory.CreateClient(NamedClient.Default);
-
-            return await httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+            return await _httpClientFactory.CreateClient(NamedClient.Default).GetAsync(url, cancellationToken).ConfigureAwait(false);
         }
     }
 }
