@@ -1,37 +1,30 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Jellyfin.Data.Entities.Libraries;
 using Jellyfin.Plugin.MyAnimeList.Providers.MyAnimeList;
 using JikanDotNet;
+using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MyAnimeList.Providers
 {
-    internal class Utils
+    internal static class Utils
     {
-        /// <summary>
-        /// Logger.
-        /// </summary>
-        private readonly ILogger<MyAnimeListSeriesProvider> _log;
-
-        public Utils(ILogger<MyAnimeListSeriesProvider> log)
-        {
-            _log = log;
-        }
-
         /// <summary>
         /// Create a new RemoteSearchResult.
         /// </summary>
         /// <param name="anime">The Anime that should be parsed to the RemoteSearchResult.</param>
         /// <returns>A RemoteSearchResult.</returns>
-        internal RemoteSearchResult MapToRemoteSearchResult(Anime anime)
+        internal static RemoteSearchResult MapToRemoteSearchResult(Anime anime)
         {
-            var parsedAnime = new RemoteSearchResult
+            var remoteSearchResult = new RemoteSearchResult
             {
                 Name = anime.Title,
                 SearchProviderName = Constants.PluginName,
@@ -40,9 +33,9 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers
                 ProductionYear = anime.Aired.From?.Year,
                 PremiereDate = anime.Aired.From
             };
-            parsedAnime.SetProviderId(Constants.PluginName, anime.MalId.ToString());
+            remoteSearchResult.SetProviderId(Constants.PluginName, anime.MalId.ToString());
 
-            return parsedAnime;
+            return remoteSearchResult;
         }
 
         /// <summary>
@@ -50,13 +43,13 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers
         /// </summary>
         /// <param name="data">A collection of Anime Objects.</param>
         /// <returns>The List of RemoteSearchResults.</returns>
-        internal List<RemoteSearchResult> MapToRemoteSearchResults(ICollection<Anime> data)
+        internal static List<RemoteSearchResult> MapToRemoteSearchResults(ICollection<Anime> data)
         {
             List<RemoteSearchResult> results = new List<RemoteSearchResult>();
 
             foreach (var anime in data)
             {
-                results.Add(this.MapToRemoteSearchResult(anime));
+                results.Add(MapToRemoteSearchResult(anime));
             }
 
             return results;
@@ -67,15 +60,15 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers
         /// </summary>
         /// <param name="status">the Status of the Anime.</param>
         /// <returns>the SeriesStatus for Jellyfin.</returns>
-        internal SeriesStatus? ParseStatus(string status)
+        internal static SeriesStatus? ParseStatus(string status)
         {
             SeriesStatus? result;
 
-            if (status.Equals("Currently Airing", StringComparison.Ordinal))
+            if (status.Equals("Currently Airing", StringComparison.OrdinalIgnoreCase))
             {
                 result = SeriesStatus.Continuing;
             }
-            else if (status.Equals("Finished Airing", StringComparison.Ordinal))
+            else if (status.Equals("Finished Airing", StringComparison.OrdinalIgnoreCase))
             {
                 result = SeriesStatus.Ended;
             }
@@ -93,15 +86,15 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers
         /// <param name="genres">The Genres from the JikanAPI.</param>
         /// <param name="demographics">The Demographics from the JikanAPI.</param>
         /// <returns>A String Array that contains all genres and demographics.</returns>
-        internal string[] ParseGenres(ICollection<MalUrl> genres, ICollection<MalUrl> demographics)
+        internal static string[] ParseGenres(ICollection<MalUrl> genres, ICollection<MalUrl> demographics)
         {
             List<string> result = new List<string>();
 
             // add all genres to the list
-            result.AddRange(this.ParseCollection(genres));
+            result.AddRange(ParseCollection(genres));
 
             // add all demographics to the list
-            result.AddRange(this.ParseCollection(demographics));
+            result.AddRange(ParseCollection(demographics));
 
             return result.ToArray();
         }
@@ -111,12 +104,12 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers
         /// </summary>
         /// <param name="studios">The Studios from the JikanAPI.</param>
         /// <returns>A String Array that contains all the names of the Studios.</returns>
-        internal string[] ParseStudios(ICollection<MalUrl> studios)
+        internal static string[] ParseStudios(ICollection<MalUrl> studios)
         {
             List<string> result = new List<string>();
 
             // add all studios
-            result.AddRange(this.ParseCollection(studios));
+            result.AddRange(ParseCollection(studios));
 
             return result.ToArray();
         }
@@ -126,7 +119,7 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers
         /// </summary>
         /// <param name="collection">The Collection to be parsed.</param>
         /// <returns>a List containing the Names that were in the Collection.</returns>
-        private IEnumerable<string> ParseCollection(ICollection<MalUrl> collection)
+        private static IEnumerable<string> ParseCollection(ICollection<MalUrl> collection)
         {
             List<string> result = new List<string>();
 
@@ -144,7 +137,7 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers
         /// </summary>
         /// <param name="anime">The Anime Object.</param>
         /// <returns>the title that should be used.</returns>
-        internal string GetName(Anime anime)
+        internal static string GetName(Anime anime)
         {
             // TODO: add the ability to select which title should be used
             return anime.Title;
@@ -155,9 +148,9 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers
         /// </summary>
         /// <param name="image">JikanAPI provides an ImageSet of jpg and webp versions of the same image.</param>
         /// <returns>Object with the large Image Url and the ImageType Primary.</returns>
-        internal (string Url, ImageType Type) MapToRemoteImage(ImagesSet image)
+        internal static (string Url, ImageType Type) MapToRemoteImage(ImagesSet image)
         {
-            this._log.LogInformation("avialable Image: {Url}", image.JPG.LargeImageUrl);
+            // this._log.LogInformation("avialable Image: {Url}", image.JPG.LargeImageUrl);
 
             return (image.JPG.LargeImageUrl, ImageType.Primary);
         }
@@ -167,16 +160,33 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers
         /// </summary>
         /// <param name="images">The Data Response from the API.</param>
         /// <returns>A List of Objects with the large Image Url and the ImageType Primary.</returns>
-        internal IEnumerable<(string Url, ImageType Type)> MapToRemoteImages(ICollection<ImagesSet> images)
+        internal static IEnumerable<(string Url, ImageType Type)> MapToRemoteImages(ICollection<ImagesSet> images)
         {
             List<(string Url, ImageType Type)> result = new List<(string Url, ImageType Type)>();
 
             foreach (var image in images)
             {
-                result.Add(this.MapToRemoteImage(image));
+                result.Add(MapToRemoteImage(image));
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Parse the Score to a single-precision float.
+        /// </summary>
+        /// <param name="score">The score of the Anime.</param>
+        /// <returns>A Single-precision flaot.</returns>
+        internal static float? ParseCommunityRating(double? score)
+        {
+            if (score == null)
+            {
+                return null;
+            }
+            else
+            {
+                return Convert.ToSingle(Math.Round(score.Value, 1), CultureInfo.InvariantCulture);
+            }
         }
     }
 }

@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Net.Http;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using JikanDotNet;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Entities.TV;
+using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Providers;
@@ -16,14 +18,14 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.MyAnimeList.Providers.MyAnimeList
 {
     /// <summary>
-    /// MyAnimeList Series Provider.
+    /// MyAnimeList Movie Image Provider.
     /// </summary>
-    public class MyAnimeListSeriesImageProvider : IRemoteImageProvider
+    public class MyAnimeListMovieImageProvider : IRemoteImageProvider
     {
         /// <summary>
         /// Logger.
         /// </summary>
-        private readonly ILogger<MyAnimeListSeriesImageProvider> _log;
+        private readonly ILogger<MyAnimeListMovieImageProvider> _log;
 
         /// <summary>
         /// httpClientFactory.
@@ -33,12 +35,12 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers.MyAnimeList
         private readonly MyAnimeListClientManager clientManager;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="MyAnimeListSeriesImageProvider"/> class.
+        /// Initializes a new instance of the <see cref="MyAnimeListMovieImageProvider"/> class.
         /// </summary>
         /// <param name="logger">Instance of the <see cref="ILogger{MyAnimeListSeriesImageProvider}"/> interface.</param>
         /// <param name="httpClientFactory">Instance of the <see cref="IHttpClientFactory"/> interface.</param>
         /// <param name="clientManager">Instance of the <see cref="MyAnimeListClientManager"/>.</param>
-        public MyAnimeListSeriesImageProvider(ILogger<MyAnimeListSeriesImageProvider> logger, IHttpClientFactory httpClientFactory, MyAnimeListClientManager clientManager)
+        public MyAnimeListMovieImageProvider(ILogger<MyAnimeListMovieImageProvider> logger, IHttpClientFactory httpClientFactory, MyAnimeListClientManager clientManager)
         {
             this._log = logger;
             this._httpClientFactory = httpClientFactory;
@@ -57,7 +59,7 @@ namespace Jellyfin.Plugin.MyAnimeList.Providers.MyAnimeList
         /// <inheritdoc/>
         public bool Supports(BaseItem item)
         {
-            return item is Series;
+            return item is Movie;
         }
 
         /// <inheritdoc/>
